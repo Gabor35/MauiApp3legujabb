@@ -1,0 +1,91 @@
+﻿@page "/login"
+@using MauiApp3.Models
+@using MauiApp3.DTOs
+@inject MauiApp3.Services.ApiService Api
+@inject NavigationManager Navigation
+
+<h3 class="text-center text-primary">Login</h3>
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-4">
+            <div class="card shadow-lg p-4 rounded">
+                <div class="card-body">
+                    @if (user is not null)
+                    {
+                        <h4 class="text-center">Üdv, @user!.Name!</h4>
+                        <img src="@user!.ProfilePicturePath" alt="Profilkép" class="avatar d-block mx-auto" />
+                        <button class="btn btn-danger w-100 mt-3" @onclick="HandleLogout">Kijelentkezés</button>
+                    }
+                    else
+                    {
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" id="username" class="form-control" @bind="Username" />
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <input type="password" id="password" class="form-control" @bind="Password" />
+                        </div>
+                        <button class="btn btn-primary w-100" @onclick="Bejelentkezes">Login</button>
+                        @if (LoginFailed)
+                        {
+                            <p class="text-danger mt-2">Invalid username or password.</p>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string Username { get; set; } = string.Empty;
+    private string Password { get; set; } = string.Empty;
+    private bool LoginFailed { get; set; } = false;
+    private LoggedUser? user;
+
+    protected override async Task OnInitializedAsync()
+    {
+        user = await Api.GetStoredUserAsync();
+        if (user is not null)
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    private async Task Bejelentkezes()
+    {
+        var salt = await Api.GetSaltAsync(Username);
+        if (string.IsNullOrEmpty(salt))
+        {
+            LoginFailed = true;
+            return;
+        }
+
+        var hashedPassword =Api.CreateSHA256(Password + salt);
+        user = await Api.LoginAsync(Username, hashedPassword);
+
+        if (user is not null)
+        {
+            await SecureStorage.SetAsync("auth_token", user.Token);
+            Navigation.NavigateTo("/", forceLoad: true);
+        }
+        else
+        {
+            LoginFailed = true;
+        }
+    }
+
+    private async Task HandleLogout()
+    {
+        var token = await SecureStorage.GetAsync("auth_token");
+        if (!string.IsNullOrEmpty(token))
+        {
+            await Api.LogoutAsync(token);
+            await SecureStorage.SetAsync("auth_token", string.Empty);
+        }
+        user = null;
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+}

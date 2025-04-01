@@ -1,0 +1,127 @@
+﻿@page "/addevent"
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Forms
+@inject HttpClient Http
+
+<h3>Esemény hozzáadása</h3>
+
+@if (!string.IsNullOrEmpty(ErrorMessage))
+{
+    <div class="alert">@ErrorMessage</div>
+}
+
+<fieldset>
+    <legend>Esemény adatai</legend>
+    <input type="text" @bind="NewEvent.Cime" placeholder="Esemény címe" class="form-control" />
+    <input type="text" @bind="NewEvent.Helyszin" placeholder="Helyszín" class="form-control" />
+    <input type="datetime-local" @bind="NewEvent.Datum" @bind:format="yyyy-MM-ddTHH:mm" class="form-control" />
+    <textarea @bind="NewEvent.Leiras" placeholder="Esemény leírása" class="form-control"></textarea>
+
+    <InputFile OnChange="OnImageUpload" class="form-control" />
+
+    @if (!string.IsNullOrEmpty(NewEvent.Kepurl))
+    {
+        <img src="@NewEvent.Kepurl" alt="Esemény kép" style="max-width:200px;" />
+    }
+</fieldset>
+
+<div style="text-align:center;">
+    <button @onclick="HandleAddEvent" class="btn btn-secondary">Hozzáadás</button>
+</div>
+
+<style>
+    .form-control {
+        margin-bottom: 15px;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+    }
+
+    .btn-secondary {
+        background-color: #5c5c5c;
+        color: #fff;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+        .btn-secondary:hover {
+            background-color: #444;
+        }
+
+    img {
+        margin-top: 10px;
+        display: block;
+        max-width: 200px;
+        height: auto;
+    }
+
+    .alert {
+        color: #a94442;
+        background-color: #f2dede;
+        border: 1px solid #ebccd1;
+        padding: 10px;
+        margin-bottom: 15px;
+        border-radius: 5px;
+    }
+</style>
+
+@code {
+    private EventModel NewEvent { get; set; } = new();
+    private string ErrorMessage { get; set; } = string.Empty;
+
+    private async Task HandleAddEvent()
+    {
+        if (string.IsNullOrWhiteSpace(NewEvent.Cime) || string.IsNullOrWhiteSpace(NewEvent.Helyszin))
+        {
+            ErrorMessage = "Minden mezőt ki kell tölteni, kivéve az esemény leírását!";
+            return;
+        }
+
+        NewEvent.EsemenyID = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        var eventToSend = new
+        {
+            EsemenyID = NewEvent.EsemenyID,
+            Cime = NewEvent.Cime,
+            Helyszin = NewEvent.Helyszin,
+            Datum = NewEvent.Datum.ToString("yyyy-MM-ddTHH:mm:ss"),
+            Leiras = NewEvent.Leiras,
+            Kepurl = NewEvent.Kepurl
+        };
+
+        var response = await Http.PostAsJsonAsync("http://192.168.60.80:5000/api/Esemeny", eventToSend);
+
+        if (response.IsSuccessStatusCode)
+        {
+            NewEvent = new EventModel();
+            ErrorMessage = string.Empty;
+        }
+        else
+        {
+            ErrorMessage = "Hiba történt az esemény hozzáadása során.";
+        }
+    }
+
+    private async Task OnImageUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            var buffer = new byte[file.Size];
+            await file.OpenReadStream().ReadAsync(buffer);
+            NewEvent.Kepurl = $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer)}";
+        }
+    }
+
+    public class EventModel
+    {
+        public long EsemenyID { get; set; }
+        public string Cime { get; set; } = string.Empty;
+        public string Helyszin { get; set; } = string.Empty;
+        public DateTime Datum { get; set; }
+        public string Leiras { get; set; } = string.Empty;
+        public string Kepurl { get; set; } = string.Empty;
+    }
+}
