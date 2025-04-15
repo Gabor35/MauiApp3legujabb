@@ -1,0 +1,205 @@
+﻿@page "/calendar"
+
+<div class="calendar-container">
+    <div class="calendar-header">
+        <button @onclick="() => ChangeMonth(-1)">&lt;</button>
+        <h2>@currentDate.ToString("MMMM yyyy")</h2>
+        <button @onclick="() => ChangeMonth(1)">&gt;</button>
+    </div>
+
+    <div class="calendar-days">
+        @foreach (var day in weekdays)
+        {
+            <div class="calendar-day-name">@day</div>
+        }
+    </div>
+
+    <div class="calendar-body">
+        @foreach (var row in calendarRows)
+        {
+            <div class="calendar-row">
+                @foreach (var day in row)
+                {
+                    <div class="calendar-cell @(day.IsCurrentMonth ? "" : "disabled") @(day.IsToday ? "today" : "")" @onclick="() => SelectDate(day.Date)">
+                        <span>@day.Date.Day</span>
+                        @if (day.Events.Count > 0)
+                        {
+                            <div class="event-dot">@day.Events.Count</div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    @if (selectedDate != null)
+    {
+        <div class="selected-date-events">
+            <h3>@selectedDate.Value.ToString("yyyy. MMMM d.")</h3>
+            @foreach (var ev in selectedEvents)
+            {
+                <div class="event-item">
+                    <h4>@ev.Cime</h4>
+                    <p>@ev.Helyszin</p>
+                    <p>@ev.Datum.ToString("HH:mm")</p>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .calendar-container {
+        max-width: 600px;
+        margin: 20px auto;
+        padding: 20px;
+        border: 2px solid #007bff;
+        border-radius: 10px;
+        background: #f9f9f9;
+        box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .calendar-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        font-weight: bold;
+        font-size: 1.2rem;
+    }
+
+    .calendar-days, .calendar-row {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .calendar-day-name, .calendar-cell {
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        border-radius: 5px;
+    }
+
+    .calendar-cell {
+        border: 1px solid #ccc;
+        cursor: pointer;
+        transition: 0.3s;
+    }
+
+        .calendar-cell:hover {
+            background-color: #e0e0e0;
+        }
+
+        .calendar-cell.today {
+            background-color: #007bff;
+            color: white;
+            border-radius: 50%;
+        }
+
+        .calendar-cell.disabled {
+            color: gray;
+            background: #f0f0f0;
+        }
+
+    .event-dot {
+        background: red;
+        color: white;
+        font-size: 12px;
+        border-radius: 50%;
+        padding: 2px 6px;
+        margin-top: 5px;
+    }
+
+    .selected-date-events {
+        margin-top: 15px;
+        padding: 10px;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .event-item {
+        padding: 5px;
+        border-bottom: 1px solid #ddd;
+    }
+
+        .event-item:last-child {
+            border-bottom: none;
+        }
+</style>
+
+@code {
+    private DateTime currentDate = DateTime.Now;
+    private DateTime? selectedDate;
+    private List<EventModel> selectedEvents = new List<EventModel>();
+    private List<string> weekdays = new() { "Vas", "Hét", "Ke", "Sze", "Csü", "Pén", "Szo" };
+    private List<List<CalendarDay>> calendarRows = new();
+
+    protected override void OnInitialized()
+    {
+        GenerateCalendar();
+    }
+
+    private void ChangeMonth(int increment)
+    {
+        currentDate = currentDate.AddMonths(increment);
+        GenerateCalendar();
+    }
+
+    private void GenerateCalendar()
+    {
+        var monthStart = new DateTime(currentDate.Year, currentDate.Month, 1);
+        var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+        var startDate = monthStart.AddDays(-(int)monthStart.DayOfWeek);
+        var endDate = monthEnd.AddDays(6 - (int)monthEnd.DayOfWeek);
+        calendarRows.Clear();
+        var row = new List<CalendarDay>();
+
+        for (var day = startDate; day <= endDate; day = day.AddDays(1))
+        {
+            row.Add(new CalendarDay(day, day.Month == currentDate.Month, day.Date == DateTime.Today, GetEventsForDay(day)));
+            if (row.Count == 7)
+            {
+                calendarRows.Add(new List<CalendarDay>(row));
+                row.Clear();
+            }
+        }
+    }
+
+    private List<EventModel> GetEventsForDay(DateTime day)
+    {
+        return new List<EventModel>();
+    }
+
+    private void SelectDate(DateTime date)
+    {
+        selectedDate = date;
+        selectedEvents = GetEventsForDay(date);
+    }
+
+    private class CalendarDay
+    {
+        public DateTime Date { get; }
+        public bool IsCurrentMonth { get; }
+        public bool IsToday { get; }
+        public List<EventModel> Events { get; }
+
+        public CalendarDay(DateTime date, bool isCurrentMonth, bool isToday, List<EventModel> events)
+        {
+            Date = date;
+            IsCurrentMonth = isCurrentMonth;
+            IsToday = isToday;
+            Events = events;
+        }
+    }
+
+    private class EventModel
+    {
+        public string? Cime { get; set; }
+        public string? Helyszin { get; set; }
+        public DateTime Datum { get; set; }
+    }
+}

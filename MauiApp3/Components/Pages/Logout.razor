@@ -1,0 +1,45 @@
+﻿@page "/logout"
+@using MauiApp3.Models
+@using MauiApp3.Services
+@inject ApiService Api
+@inject AuthService Auth
+@inject NavigationManager Navigation
+@inject UserContext UserContext
+
+<h3 class="text-center text-danger">Logout</h3>
+
+<div class="container mt-4 text-center">
+    <div class="row justify-content-center">
+        <div class="col-md-4">
+            <div class="card shadow-lg p-4 rounded">
+                <div class="card-body">
+                    <p>Biztosan ki szeretnél jelentkezni?</p>
+                    <button class="btn btn-danger w-100" @onclick="Kijelentkezes">Kijelentkezés</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private async Task Kijelentkezes()
+    {
+        var token = await SecureStorage.GetAsync("auth_token");
+
+        if (!string.IsNullOrEmpty(token))
+        {
+            bool success = await Api.LogoutAsync();
+
+            if (success)
+            {
+                SecureStorage.Remove("auth_token");
+            }
+        }
+        UserContext.Username = string.Empty;
+        Navigation.NavigateTo("/login", true);
+    }
+
+
+
+
+}

@@ -1,0 +1,138 @@
+﻿@page "/chat"
+@using MauiApp3.Models
+@using MauiApp3.Services
+@inject FirebaseChatService Firebase
+@inject UserContext UserContext
+@inject IJSRuntime JSRuntime
+
+<div class="container mt-5 d-flex justify-content-center">
+    <div class="card shadow-lg p-4" style="width: 700px;">
+        <h3 class="text-center mb-4">Chat Fórum</h3>
+
+        @if (string.IsNullOrEmpty(UserContext.Username))
+        {
+            <div class="alert alert-warning text-center">
+                Kérlek, jelentkezz be a chat használatához!
+            </div>
+        }
+        else
+        {
+            <div class="text-end text-muted mb-2">
+                Bejelentkezve: <strong>@UserContext.Username</strong>
+            </div>
+
+            <div class="p-3 rounded border bg-light shadow-sm" style="max-height: 450px; overflow-y: auto;">
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <p class="text-danger text-center">@errorMessage</p>
+                }
+                else if (chats == null)
+                {
+                    <p class="text-center">Betöltés...</p>
+                }
+                else if (!chats.Any())
+                {
+                    <p class="text-center">Még nincs üzenet.</p>
+                }
+                else
+                {
+                    @foreach (var msg in chats)
+                    {
+                        <div class="mb-3 p-2 rounded border bg-white shadow-sm">
+                            <div class="d-flex justify-content-between">
+                                <strong class="@(msg.UserId == UserContext.Username ? "text-primary" : "text-success")">
+                                    @msg.UserId
+                                </strong>
+                                <span class="text-muted small">
+                                    @DateTimeOffset.FromUnixTimeMilliseconds(msg.Timestamp).LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")
+                                </span>
+                            </div>
+                            <p class="mt-2 mb-0">@msg.Message</p>
+                        </div>
+                    }
+                    <div id="messagesEnd" @ref="messagesEndRef"></div>
+                }
+            </div>
+
+            <div class="mt-3 d-flex gap-2">
+                <input type="text" @bind="newMessage" placeholder="Írj egy üzenetet..." class="form-control" />
+                <button class="btn btn-primary" @onclick="SendMessage">➤</button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<ChatMessage>? chats;
+    private string newMessage = string.Empty;
+    private string errorMessage = string.Empty;
+    private ElementReference messagesEndRef;
+    private System.Threading.Timer? _refreshTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMessages();
+
+        _refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadMessages();
+                await ScrollToBottomAsync();
+                StateHasChanged();
+            });
+        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(4));
+    }
+
+    private async Task LoadMessages()
+    {
+        try
+        {
+            chats = await Firebase.GetMessagesAsync();
+            errorMessage = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Hiba történt az üzenetek betöltésekor: {ex.Message}";
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(newMessage) || string.IsNullOrEmpty(UserContext.Username))
+        {
+            errorMessage = "Nem küldhetsz üzenetet bejelentkezés nélkül.";
+            return;
+        }
+
+        var chat = new ChatMessage
+            {
+                UserId = UserContext.Username,
+                Message = newMessage,
+                Timestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds()
+            };
+
+        try
+        {
+            await Firebase.SendMessageAsync(chat);
+            newMessage = string.Empty;
+            await LoadMessages();
+            await ScrollToBottomAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Hiba történt az üzenet küldésekor: {ex.Message}";
+        }
+    }
+
+    private async Task ScrollToBottomAsync()
+    {
+        await Task.Delay(50);
+        await JSRuntime.InvokeVoidAsync("scrollToBottom");
+    }
+
+    public void Dispose()
+    {
+        _refreshTimer?.Dispose();
+    }
+}

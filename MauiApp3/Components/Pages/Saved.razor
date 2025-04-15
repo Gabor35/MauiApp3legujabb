@@ -1,0 +1,91 @@
+﻿@page "/saved"
+@using MauiApp3.Models
+@using System.Net.Http.Json
+@using MauiApp3.Services
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject MauiApp3.Services.ApiService Api
+@inject AuthService Auth
+
+@if (loading)
+{
+    <p>Loading saved events...</p>
+}
+else if (!Auth.IsLoggedIn)
+{
+    <div class="message-box">
+        <div class="text-center" style="font-size: 30px; color: white;">Nincs bejelentkezve. Kérlek jelentkezz be a mentett események megtekintéséhez!</div>
+    </div>
+}
+else if (savedEvents == null || savedEvents.Count == 0)
+{
+    <div class="message-box">
+        <div class="text-center" style="font-size: 30px; color: white;">Nincsenek mentett események!</div>
+    </div>
+}
+else
+{
+    <div class="row">
+        @foreach (var eventItem in savedEvents)
+        {
+            <div class="col-md-4 mb-3">
+                <div class="card">
+                    <img src="@eventItem.KepUrl" class="card-img-top" alt="@eventItem.Cime" style="height: 200px; object-fit: cover;">
+                    <div class="card-body">
+                        <h5 class="card-title">@eventItem.Cime</h5>
+                        <p class="card-text">Dátum: @eventItem.Datum.ToString("yyyy-MM-dd HH:mm")</p>
+                        <p class="card-text">Helyszín: @eventItem.Helyszin</p>
+                        <button class="btn btn-secondary" @onclick="() => ShowDetails(eventItem)">Részletek</button>
+                        <button class="btn btn-danger ms-2" @onclick="() => UnsaveEvent(eventItem.Id)">Törlés</button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<SavedEvent> savedEvents = new();
+    private bool loading = true;
+    private string? error;
+    private SavedEvent? selectedEvent;
+    private bool showModal = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (Auth.IsLoggedIn)
+            {
+                savedEvents = await Http.GetFromJsonAsync<List<SavedEvent>>("https://esemenyrendezo1.azurewebsites.net/api/reszvetel/saved") ?? new List<SavedEvent>();
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Hiba a mentett események betöltésekor: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void ShowDetails(SavedEvent eventItem)
+    {
+        selectedEvent = eventItem;
+        showModal = true;
+    }
+
+    private async Task UnsaveEvent(int eventId)
+    {
+        try
+        {
+            await Http.DeleteAsync($"https://esemenyrendezo1.azurewebsites.net/api/reszvetel/{eventId}");
+            savedEvents.RemoveAll(e => e.Id == eventId);
+        }
+        catch (Exception ex)
+        {
+            error = $"Hiba az esemény törlésekor: {ex.Message}";
+        }
+    }
+}

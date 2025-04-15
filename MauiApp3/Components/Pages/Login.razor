@@ -1,0 +1,100 @@
+﻿@page "/login"
+@using MauiApp3.Models
+@using MauiApp3.DTOs
+@using MauiApp3.Services
+@inject ApiService Api
+@inject AuthService Auth
+@inject NavigationManager Navigation
+@inject UserContext UserContext
+
+<h3 class="text-center text-primary">Login</h3>
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-4">
+            <div class="card shadow-lg p-4 rounded">
+                <div class="card-body">
+                    @if (Auth.IsLoggedIn && Auth.CurrentUser is not null)
+                    {
+                        <h4 class="text-center">Üdv, @Auth.CurrentUser.Name!</h4>
+                        <img src="@Auth.CurrentUser.ProfilePicturePath" alt="Profilkép" class="avatar d-block mx-auto" />
+                        <button class="btn btn-danger w-100 mt-3" @onclick="HandleLogout">Kijelentkezés</button>
+                    }
+                    else
+                    {
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" id="username" class="form-control" @bind="Username" />
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <input type="password" id="password" class="form-control" @bind="Password" />
+                        </div>
+                        <button class="btn btn-primary w-100" @onclick="Bejelentkezes">Login</button>
+                        @if (LoginFailed)
+                        {
+                            <p class="text-danger mt-2">Invalid username or password.</p>
+                        }
+                        <div class="mt-3 text-center">
+                            <p>Nem vagy még regisztrálva? <a href="https://esemenyrendezo.onrender.com/register" target="_blank">Regisztrálj itt!</a></p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string Username { get; set; } = string.Empty;
+    private string Password { get; set; } = string.Empty;
+    private bool LoginFailed { get; set; } = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync(Api);
+
+        if (Auth.IsLoggedIn)
+        {
+            if (Auth.CurrentUser is not null)
+            {
+                UserContext.Username = Auth.CurrentUser.Name;
+            }
+
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    private async Task Bejelentkezes()
+    {
+        var salt = await Api.GetSaltAsync(Username);
+        if (string.IsNullOrEmpty(salt))
+        {
+            LoginFailed = true;
+            return;
+        }
+
+        var hashedPassword = Api.CreateSHA256(Password + salt);
+        var user = await Api.LoginAsync(Username, hashedPassword);
+
+        if (user is not null)
+        {
+            await Auth.SetUserAsync(user, Api);
+            UserContext.Username = user.Name;
+
+            Navigation.NavigateTo("/", forceLoad: true);
+        }
+        else
+        {
+            LoginFailed = true;
+        }
+    }
+
+    private async Task HandleLogout()
+    {
+        await Auth.LogoutAsync(Api);
+        UserContext.Username = string.Empty;
+
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+}
