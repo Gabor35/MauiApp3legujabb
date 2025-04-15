@@ -1,0 +1,1 @@
+Eseményrendező Mobilos nézete
